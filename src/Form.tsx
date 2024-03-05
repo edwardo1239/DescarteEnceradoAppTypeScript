@@ -53,25 +53,6 @@ type historialObjType = {
   fecha: Date;
 };
 
-
-type inventarioType = {
-  balin: number
-  pareja: number
-  extra: number
-  descarteGeneral: number
-}
-
-
-type descarteEnceradoType = {
-  balin: number
-  pareja: number
-  descarteGeneral: number
-  extra: number
-  descompuesta: number
-  suelo: number
-}
-
-
 const socket = io('http://192.168.0.172:3001/');
 
 export default function Form() {
@@ -124,23 +105,18 @@ export default function Form() {
   const [frutaNacionalKilos, setFrutaNacionalKilos] = useState<string>('');
 
   const [loading, setLoading] = useState<boolean>(false);
-  const [inventario, setInventario] = useState<inventarioType>({balin:0,descarteGeneral:0,pareja:0, extra:0});
-  const [descarteEncerado, setDescarteEncerado] = useState<descarteEnceradoType>({balin:0,descarteGeneral:0,pareja:0,descompuesta:0,extra:0,suelo:0});
-
 
 
 
   const obtenerLote = async (): Promise<any> => {
     try {
       setLoading(true);
-      let id;
       const requestENF = { data: { collection: 'variablesDescartes', action: 'obtenerEF1Descartes' } };
       const responseServerPromise: datosPredioType = await new Promise((resolve) => {
         socket.emit('descartes', requestENF, (responseServer: datosPredioType) => {
           resolve(responseServer);
         });
       });
-      id = responseServerPromise._id;
 
       setDatosPredio({
         _id: responseServerPromise._id,
@@ -148,33 +124,6 @@ export default function Form() {
         tipoFruta: responseServerPromise.tipoFruta,
         nombrePredio: responseServerPromise.nombrePredio,
       });
-      const request = {
-        data:{
-          query:{
-            _id: id,
-          },
-          select : { inventarioActual:1, descarteEncerado: 1},
-          populate:'',
-          sort:{fechaIngreso: -1},
-        },
-        collection:'lotes',
-        action: 'getLotes',
-        query: 'proceso',
-      };
-       const promises: inventarioType = await new Promise((resolve) => {
-        socket.emit('descartes', {data:request}, (responseInventario:{status:number,data:[{inventarioActual:{descarteEncerado:inventarioType}, descarteEncerado:descarteEnceradoType}]}) => {
-          if (responseInventario && responseInventario.data && responseInventario.data[0] && responseInventario.data[0].inventarioActual) {
-            const descarteLavadoResponse:inventarioType = responseInventario.data[0].inventarioActual.descarteEncerado;
-            setDescarteEncerado(responseInventario.data[0].descarteEncerado);
-            resolve(descarteLavadoResponse);
-          } else {
-            console.log('responseInventario, data, data[0], or inventarioActual is undefined');
-          }
-
-        });
-      });
-      console.log(promises);
-      setInventario(promises);
     } catch (e: any) {
       Alert.alert(`${e.name}: ${e.message}`);
     } finally {
@@ -190,18 +139,19 @@ export default function Form() {
       let cantidad: cantidadType = await sumarDatos();
       const new_lote = {
         _id:datosPredio._id,
-        descarteEncerado: {
-          balin: descarteEncerado.balin + cantidad.balin,
-          pareja: descarteEncerado.pareja + cantidad.pareja,
-          descarteGeneral: descarteEncerado.descarteGeneral + cantidad.descarteGeneral,
-          descompuesta: descarteEncerado.descompuesta + cantidad.descompuesta,
-          extra: descarteEncerado.extra + cantidad.extra,
-          suelo: descarteEncerado.suelo + cantidad.suelo,
-        },
-        'inventarioActual.descarteEncerado.balin': cantidad.balin + inventario.balin,
-        'inventarioActual.descarteEncerado.pareja': cantidad.pareja + inventario.pareja,
-        'inventarioActual.descarteEncerado.extra': cantidad.pareja + inventario.extra,
-        'inventarioActual.descarteEncerado.descarteGeneral': cantidad.descarteGeneral + inventario.descarteGeneral,
+        $inc: {'inventarioActual.descarteEncerado.balin': cantidad.balin,
+        'inventarioActual.descarteEncerado.pareja': cantidad.pareja,
+        'inventarioActual.descarteEncerado.descarteGeneral': cantidad.descarteGeneral,
+        'inventarioActual.descarteEncerado.extra': cantidad.extra,
+
+        'descarteEncerado.descarteGeneral': cantidad.descarteGeneral,
+        'descarteEncerado.pareja': cantidad.pareja,
+        'descarteEncerado.balin': cantidad.balin,
+        'descarteEncerado.extra': cantidad.extra,
+        'descarteEncerado.descompuesta': cantidad.descompuesta,
+        'descarteEncerado.suelo': cantidad.suelo,
+        'frutaNacional': cantidad.frutaNacional,
+      },
       };
       const request = {
         query: 'proceso',
